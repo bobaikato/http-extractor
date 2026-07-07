@@ -90,21 +90,23 @@ jobs:
         run: |
           ota run setup --dry-run --json . > .ota/ci/run-setup-dry-run.json
           ota run test:phpunit --dry-run --json . > .ota/ci/run-test-phpunit-dry-run.json
+          ota run test:datadir --dry-run --json . > .ota/ci/run-test-datadir-dry-run.json
           ota run test --dry-run --json . > .ota/ci/run-test-dry-run.json
           ota run verify --dry-run --json . > .ota/ci/run-verify-dry-run.json
           ota run extract --dry-run --json . > .ota/ci/run-extract-dry-run.json
           ota up --workflow verify --dry-run --json . > .ota/ci/up-verify-dry-run.json
+          ota up --workflow functional --dry-run --json . > .ota/ci/up-functional-dry-run.json
 
       - name: Execute setup and test task lanes
         shell: bash
         run: |
           ota run setup --stream .
-          ota run test:phpunit --stream .
+          ota run test:datadir --stream .
 
       - name: Execute workflow verification lane
         shell: bash
         run: |
-          ota up --workflow verify --stream .
+          ota up --workflow functional --stream .
           ota receipt --json --archive . > .ota/ci/receipt.json
 
       - name: Upload failure artifacts

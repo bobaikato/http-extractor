@@ -157,7 +157,12 @@ tasks:
         - vendor
       external_state:
         - docker
+      network: true
+      network_kind: integration_test
     safe_for_agent: false
+    notes: |
+      This PHPUnit lane includes a live external-network behavior check for TLS/error handling, so
+      it is truthful execution proof but not the narrowest deterministic CI lane.
 
   test:datadir:
     description: Run the datadir fixture suite exposed by the repo's Composer scripts
@@ -297,6 +302,8 @@ tasks:
         - vendor
       external_state:
         - docker
+      network: true
+      network_kind: integration_test
     safe_for_agent: false
     notes: Mirrors the documented `docker-compose run --rm dev composer ci` lane.
 
@@ -339,6 +346,13 @@ workflows:
       task: setup
     run:
       task: verify
+
+  functional:
+    description: Deterministic functional fixture verification path
+    setup:
+      task: setup
+    run:
+      task: test:datadir
 
   extract:
     description: Canonical documented extractor execution path
