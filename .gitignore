@@ -1,2 +1,5 @@
 /vendor
 /.idea
+/.ota/state/
+/.ota/receipts/
+/.ota/proof/

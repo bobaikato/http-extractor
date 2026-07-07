@@ -1,0 +1,117 @@
+# <!--
+#                 █████
+#                ░░███
+#        ██████  ███████    ██████
+#       ███░░███░░░███░    ░░░░░███
+#      ░███ ░███  ░███      ███████
+#      ░███ ░███  ░███ ███ ███░░███
+#      ░░██████   ░░█████ ░░████████
+#       ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#    Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#    DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#    Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#    You may not use this file except in compliance with that License.
+#    Unless required by applicable law or agreed to in writing, software distributed under the
+#    License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#    either express or implied. See the License for the specific language governing permissions
+#    and limitations under the License.
+#
+#    If you need additional information or have any questions, please email: os@ota.run
+# -->
+
+name: "Test: Ota contract matrix"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "ota.yaml"
+      - ".gitignore"
+      - ".github/workflows/test-ota-contract-matrix.yml"
+  push:
+    paths:
+      - "ota.yaml"
+      - ".gitignore"
+      - ".github/workflows/test-ota-contract-matrix.yml"
+
+concurrency:
+  group: ota-contract-matrix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  OTA_NO_UPDATE_CHECK: "1"
+
+jobs:
+  contract:
+    name: Ota Contract Matrix (ubuntu-compose)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up ota
+        uses: ota-run/setup@v1.0.8
+        with:
+          source: contract
+          contract-path: ota.yaml
+
+      - name: Validate contract
+        shell: bash
+        run: |
+          mkdir -p .ota/ci
+          ota validate --json . > .ota/ci/validate.json
+          ota validate .
+
+      - name: Doctor contract
+        shell: bash
+        run: |
+          ota doctor --json . > .ota/ci/doctor.json
+          ota doctor .
+
+      - name: Inspect runnable surfaces
+        shell: bash
+        run: |
+          ota tasks --use .
+          ota tasks --safe --use .
+          ota workflows .
+
+      - name: Dry-run task and workflow surfaces
+        shell: bash
+        run: |
+          ota run setup --dry-run --json . > .ota/ci/run-setup-dry-run.json
+          ota run test:phpunit --dry-run --json . > .ota/ci/run-test-phpunit-dry-run.json
+          ota run test --dry-run --json . > .ota/ci/run-test-dry-run.json
+          ota run verify --dry-run --json . > .ota/ci/run-verify-dry-run.json
+          ota run extract --dry-run --json . > .ota/ci/run-extract-dry-run.json
+          ota up --workflow verify --dry-run --json . > .ota/ci/up-verify-dry-run.json
+
+      - name: Execute setup and test task lanes
+        shell: bash
+        run: |
+          ota run setup --stream .
+          ota run test:phpunit --stream .
+
+      - name: Execute workflow verification lane
+        shell: bash
+        run: |
+          ota up --workflow verify --stream .
+          ota receipt --json --archive . > .ota/ci/receipt.json
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ota-contract-matrix-http-extractor
+          include-hidden-files: true
+          path: .ota/ci/
+          retention-days: 7

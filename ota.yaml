@@ -1,0 +1,366 @@
+#                 █████
+#                ░░███
+#        ██████  ███████    ██████
+#       ███░░███░░░███░    ░░░░░███
+#      ░███ ░███  ░███      ███████
+#      ░███ ░███  ░███ ███ ███░░███
+#      ░░██████   ░░█████ ░░████████
+#       ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#    Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#    DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#    Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#    You may not use this file except in compliance with that License.
+#    Unless required by applicable law or agreed to in writing, software distributed under the
+#    License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#    either express or implied. See the License for the specific language governing permissions
+#    and limitations under the License.
+#
+#    If you need additional information or have any questions, please email: os@ota.run
+version: 1
+metadata:
+  ota:
+    minimum_version: "1.6.23"
+
+project:
+  name: http-extractor
+  description: >
+    Docker-first PHP extractor with Composer verification and one-off container execution from the
+    documented development flow.
+  type: application
+
+execution:
+  default_context: host
+  contexts:
+    host:
+      backend: native
+
+tasks:
+  setup:
+    description: Build the dev image and hydrate Composer dependencies in the documented dev container
+    aggregate:
+      tasks:
+        - image:build
+        - setup:deps
+    notes: |
+      This keeps the documented `docker-compose run --rm dev composer install --prefer-dist
+      --no-interaction` lane on Ota's first-class Compose-wrapped dependency-hydration surface
+      instead of leaving it as opaque shell glue.
+
+  image:build:
+    description: Build the documented dev image before one-off container execution
+    internal: true
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: build
+      services:
+        - dev
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      external_state:
+        - docker
+      network: true
+      network_kind: broad
+    notes: |
+      The README goes straight to `docker-compose run --rm dev ...`, which can trigger an implicit
+      image build. Ota makes that image ownership explicit so dry-run, doctor, and receipts do not
+      hide the container-prep step behind on-demand engine behavior.
+
+  setup:deps:
+    description: Install Composer dependencies through the documented dev service
+    internal: true
+    prepare:
+      kind: dependency_hydration
+      medium: package_dependencies
+      source:
+        kind: composer
+        cwd: .
+        compose:
+          kind: run
+          service: dev
+          workdir: /code
+          rm: true
+    depends_on:
+      - image:build
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+      network: true
+      network_kind: dependency_hydration
+
+  test:
+    description: Run the documented test suite in the dev container
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: composer
+      args:
+        - tests
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+    notes: Mirrors the documented `docker-compose run --rm dev composer tests` lane.
+
+  test:phpunit:
+    description: Run the PHPUnit suite exposed by the repo's Composer scripts
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: composer
+      args:
+        - tests-phpunit
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+
+  test:datadir:
+    description: Run the datadir fixture suite exposed by the repo's Composer scripts
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: composer
+      args:
+        - tests-datadir
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+
+  lint:php:
+    description: Run the PHP syntax lint lane exposed by the repo's Composer scripts
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: composer
+      args:
+        - phplint
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+
+  lint:style:
+    description: Run the PHPCS lane exposed by the repo's Composer scripts
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: composer
+      args:
+        - phpcs
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+
+  analyze:
+    description: Run the PHPStan lane exposed by the repo's Composer scripts
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: composer
+      args:
+        - phpstan
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+
+  verify:
+    description: Run the documented full CI verification lane in the dev container
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: composer
+      args:
+        - ci
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+    notes: Mirrors the documented `docker-compose run --rm dev composer ci` lane.
+
+  extract:
+    description: Run the extractor in the documented dev container
+    adapter_inputs:
+      overlays:
+        compose:
+          files:
+            - docker-compose.yml
+          project_name: http-extractor
+    compose:
+      kind: run
+      service: dev
+      workdir: /code
+      exe: php
+      args:
+        - src/run.php
+      rm: true
+    depends_on:
+      - setup:deps
+    requirements:
+      tools:
+        docker: "*"
+    effects:
+      writes:
+        - data
+        - vendor
+      external_state:
+        - docker
+    safe_for_agent: false
+    notes: Mirrors the documented `docker-compose run --rm dev` extractor lane explicitly.
+
+workflows:
+  default: verify
+
+  verify:
+    description: Canonical documented verification path
+    setup:
+      task: setup
+    run:
+      task: verify
+
+  extract:
+    description: Canonical documented extractor execution path
+    setup:
+      task: setup
+    run:
+      task: extract
+
+agent:
+  posture: readiness_strict
+  entrypoint: setup
+  default_task: verify
+  verify_after_changes:
+    - verify
+  protected_paths:
+    - .github/workflows
+    - docker-compose.yml
+    - Dockerfile
+    - docker
+  bootstrap:
+    ota:
+      note: Only install ota if it is missing and installation is approved.
+      source:
+        kind: version
+        version: v1.6.23
