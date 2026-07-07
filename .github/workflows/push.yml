@@ -24,7 +24,10 @@ jobs:
       - name: Build image
         run: |
           docker build -t $APP_IMAGE .
-      - name: Run tests
+      - name: Run deterministic local tests
+        run: docker run $APP_IMAGE composer tests-datadir
+      - name: Run broader CI verification
+        if: ${{ env.KBC_STORAGE_TOKEN != '' && env.KBC_DEVELOPERPORTAL_PASSWORD != '' }}
         run: docker run $APP_IMAGE composer ci
       - name: Push image to ECR
         if: ${{ env.DOCKERHUB_TOKEN != '' && env.KBC_DEVELOPERPORTAL_PASSWORD != '' }}
